@@ -38,6 +38,17 @@ impl DirectoryPath {
         &self.path
     }
 
+    // フォルダ名を返すメソッド。
+    // パスの最後のコンポーネントを、UTF-8文字列スライス（&str）として返します。
+    //
+    // 戻り値:
+    // - `Some(&str)`: パスにファイル名またはフォルダ名が存在し、かつ有効なUTF-8文字列として
+    //   変換できた場合。
+    // - `None`: パスが空、ルートディレクトリ、または有効なUTF-8に変換できない文字列を含んでいる場合。
+    pub fn folder_name(&self) -> Option<&str> {
+        self.path.file_name().and_then(|s| s.to_str())
+    }
+
     // ディレクトリが空かどうかをチェックするメソッド
     pub fn is_empty(&self) -> Result<bool, PathError> {
         // fs::read_dirがResultを返すため、`?`演算子でエラーを伝播させる
@@ -62,10 +73,14 @@ impl fmt::Display for DirectoryPath {
 
 #[cfg(test)]
 mod tests {
-    // 外部クレートや親モジュールをuse
     use super::*;
     use std::io::ErrorKind;
+    use std::path::PathBuf;
     use tempfile::tempdir;
+    // 追加インポート（非UTF-8テスト用）
+    use std::ffi::OsString;
+    use std::os::unix::ffi::OsStringExt;
+
     /// 正常なディレクトリパスでDirectoryPathが作成できるかテスト
     #[test]
     fn test_valid_directory_path() {
@@ -224,5 +239,43 @@ mod tests {
         } else {
             panic!("予期せぬエラーが返されました: {:?}", err);
         }
+    }
+
+    /// folder_name()が最後のコンポーネントのUTF-8文字列を返すかテスト
+    #[test]
+    fn test_folder_name_returns_name() {
+        let dir = tempdir().expect("Failed to create temp directory");
+        let path = dir.path();
+
+        let dp = DirectoryPath::new(path).unwrap();
+
+        // 期待値はPath::file_name().and_then(|s| s.to_str())と等しいはず
+        let expected = path.file_name().and_then(|s| s.to_str());
+        assert_eq!(dp.folder_name(), expected);
+    }
+
+    /// ルートディレクトリではfolder_name()がNoneを返すことを確認
+    #[test]
+    fn test_folder_name_root_returns_none() {
+        let root = std::path::Path::new("/");
+        let dp = DirectoryPath::new(root).unwrap();
+        assert!(dp.folder_name().is_none());
+    }
+
+    /// 非UTF-8のファイル名を持つディレクトリではfolder_name()がNoneを返すことを確認（Unixのみ）
+    #[cfg(unix)]
+    #[test]
+    fn test_folder_name_non_utf8_returns_none() {
+        let dir = tempdir().expect("Failed to create temp directory");
+
+        // 非UTF-8バイト列からOsStringを作成
+        let bad_name = OsString::from_vec(vec![0xff, 0xfe, 0xff]);
+        let bad_path = dir.path().join(PathBuf::from(bad_name));
+
+        // ディレクトリを作成して検証
+        std::fs::create_dir(&bad_path).expect("Failed to create non-utf8 named dir");
+        let dp = DirectoryPath::new(&bad_path).unwrap();
+
+        assert!(dp.folder_name().is_none());
     }
 }

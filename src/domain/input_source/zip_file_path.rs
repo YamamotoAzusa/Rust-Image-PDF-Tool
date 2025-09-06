@@ -46,6 +46,45 @@ impl ZipFilePath {
         &self.0
     }
 
+    // 共通の実装をまとめるためのヘルパーメソッド
+    // ファイル名を返すメソッド。
+    // パスの最後のコンポーネントを、UTF-8文字列スライス（&str）として返します。
+    //
+    // extension: bool - 拡張子を含むかどうか
+    // 戻り値:
+    // - `Some(&str)`: パスにファイル名またはフォルダ名が存在し、かつ有効なUTF-8文字列として
+    //   変換できた場合。
+    // - `None`: パスが空、ルートディレクトリ、または有効なUTF-8に変換できない文字列を含んでいる場合。
+    fn file_name_impl(&self, with_extension: bool) -> Option<&str> {
+        if with_extension {
+            self.0.file_name().and_then(|s| s.to_str())
+        } else {
+            self.0.file_stem().and_then(|s| s.to_str())
+        }
+    }
+    // ファイル名を返すメソッド。
+    // パスの最後のコンポーネントを、UTF-8文字列スライス（&str）として返します。
+    //
+    // 戻り値:
+    // - `Some(&str)`: パスにファイル名またはフォルダ名が存在し、かつ有効なUTF-8文字列として
+    //   変換できた場合。
+    // - `None`: パスが空、ルートディレクトリ、または有効なUTF-8に変換できない文字列を含んでいる場合。
+    pub fn file_name(&self) -> Option<&str> {
+        self.file_name_impl(true)
+    }
+
+    // ファイル名を返すメソッド。
+    // パスの最後のコンポーネントを、UTF-8文字列スライス（&str）として返します。
+    //
+    // with_extension: bool - 拡張子を含むかどうか
+    // 戻り値:
+    // - `Some(&str)`: パスにファイル名またはフォルダ名が存在し、かつ有効なUTF-8文字列として
+    //   変換できた場合。
+    // - `None`: パスが空、ルートディレクトリ、または有効なUTF-8に変換できない文字列を含んでいる場合。
+    pub fn file_name_with_extension(&self, with_extension: bool) -> Option<&str> {
+        self.file_name_impl(with_extension)
+    }
+
     /// 指定したエントリの中身をバイト列で返す。
     pub fn read_entry(&self, name: &str) -> Result<Vec<u8>, PathError> {
         // ヘルパーメソッドを順番に呼び出すことで、処理の流れを明確にする
@@ -199,6 +238,32 @@ mod tests {
         assert_eq!(zfp.as_path(), zip_path.as_path());
         // 表示文字列も一致することを追加で確認（任意）
         assert_eq!(zfp.to_string(), zip_path.display().to_string());
+        let _ = fs::remove_file(zip_path);
+    }
+
+    // file_name()が最後のコンポーネントのUTF-8文字列を返すかテスト
+    #[test]
+    fn test_file_name_returns() {
+        let zip_path = create_temp_zip(&[("file.txt", b"content")]);
+        let zfp = ZipFilePath::new(&zip_path).expect("ZipFilePath::new should succeed");
+
+        // 拡張子ありの`file_name()`をテスト
+        assert_eq!(
+            zfp.file_name(),
+            Some(zip_path.file_name().unwrap().to_str().unwrap())
+        );
+
+        // 拡張子ありの`file_name_with_extension(true)`をテスト
+        assert_eq!(
+            zfp.file_name_with_extension(true),
+            Some(zip_path.file_name().unwrap().to_str().unwrap())
+        );
+
+        // 拡張子なしの`file_name_with_extension(false)`をテスト
+        assert_eq!(
+            zfp.file_name_with_extension(false),
+            Some(zip_path.file_stem().unwrap().to_str().unwrap())
+        );
         let _ = fs::remove_file(zip_path);
     }
 }
