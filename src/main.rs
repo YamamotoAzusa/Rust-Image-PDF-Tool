@@ -146,16 +146,9 @@ fn is_image_file(path: &Path) -> bool {
 
 /// デフォルトのフォントデータを返します。
 fn get_default_font() -> Result<fonts::FontFamily<fonts::FontData>, Box<dyn std::error::Error>> {
-    // let font_path = "/workspaces/my-rust-gemini-app/fonts/DejaVuSans.ttf";
     // include_bytes!マクロを使用してフォントファイルをバイナリに埋め込む
     let font_data = fonts::FontData::new(include_bytes!("../fonts/DejaVuSans.ttf").to_vec(), None)?;
 
-    // Ok(fonts::FontFamily {
-    //     regular: fonts::FontData::load(font_path, None)?,
-    //     bold: fonts::FontData::load(font_path, None)?,
-    //     italic: fonts::FontData::load(font_path, None)?,
-    //     bold_italic: fonts::FontData::load(font_path, None)?,
-    // })
     Ok(fonts::FontFamily {
         regular: font_data.clone(),
         bold: font_data.clone(),
