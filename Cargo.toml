@@ -1,5 +1,5 @@
 [package]
-name = "my-rust-gemini-app"
+name = "my_rust_gemini_app"
 version = "0.1.0"
 edition = "2021"
 
@@ -10,3 +10,6 @@ zip = "0.6.6"
 image = "0.25.1"
 genpdf = { version = "0.2.0", features = ["images"] }
 rusttype = "0.9.3"
+
+[dev-dependencies]
+tempfile = "3.2"
