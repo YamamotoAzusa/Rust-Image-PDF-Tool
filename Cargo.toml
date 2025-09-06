@@ -1,0 +1,12 @@
+[package]
+name = "my-rust-gemini-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+clap = { version = "4.5.4", features = ["derive"] }
+walkdir = "2.5.0"
+zip = "0.6.6"
+image = "0.25.1"
+genpdf = { version = "0.2.0", features = ["images"] }
+rusttype = "0.9.3"

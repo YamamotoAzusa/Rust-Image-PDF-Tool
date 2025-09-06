@@ -1,0 +1,14 @@
+/workspaces/my-rust-gemini-app/target/debug/deps/png-2707d9b6377ad031.d: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/chunk.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/common.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/mod.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/stream.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/zlib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/encoder.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/filter.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/traits.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/utils.rs
+
+/workspaces/my-rust-gemini-app/target/debug/deps/libpng-2707d9b6377ad031.rmeta: /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/lib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/chunk.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/common.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/mod.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/stream.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/zlib.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/encoder.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/filter.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/traits.rs /usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/utils.rs
+
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/lib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/chunk.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/common.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/mod.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/stream.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/decoder/zlib.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/encoder.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/filter.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/traits.rs:
+/usr/local/cargo/registry/src/index.crates.io-1949cf8c6b5b557f/png-0.16.8/src/utils.rs:
