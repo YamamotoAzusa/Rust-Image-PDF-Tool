@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use zip::ZipArchive;
 
 /// ZIPファイルへのパスを表現し、その妥当性を保証する構造体。
+#[derive(Debug)]
 pub struct ZipFilePath(PathBuf);
 
 impl ZipFilePath {
