@@ -1,8 +1,9 @@
 // use宣言：必要なクレートやモジュールをスコープに取り込む
 
-use image::{self, GenericImageView}; // 画像のデコードと寸法取得のために利用
+use image::ImageReader;
+// use image::{self, GenericImageView}; // 画像のデコードと寸法取得のために利用
 use std::fmt; // エラーメッセージのフォーマットのために fmt モジュールを利用
-
+use std::io::Cursor;
 // --- 構造体定義 ---
 
 /// PDF作成などで利用することを想定した、検証済みの画像データコンテナ。
@@ -38,7 +39,9 @@ impl ImageDataList {
     /// 画像のバイナリデータから幅と高さを取得するヘルパー関数。
     #[inline]
     fn get_dimensions(bytes: &[u8]) -> Result<(u32, u32), image::ImageError> {
-        Ok(image::load_from_memory(bytes)?.dimensions())
+        ImageReader::new(Cursor::new(bytes))
+            .with_guessed_format()? // シグネチャ変わることがあるので version 固定推奨
+            .into_dimensions()
     }
 
     /// 新しい `ImageDataList` インスタンスを作成（コンストラクタ）。
