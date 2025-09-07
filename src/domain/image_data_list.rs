@@ -17,20 +17,43 @@ use std::io::Cursor;
 pub struct ImageDataList {
     images: Vec<Vec<u8>>,
     data_name: String,
-    image_height: u32,
-    image_width: u32,
+    max_height: u32,
+    max_width: u32,
 }
 
 // --- エラー定義 ---
-
-/// ` ` のインスタンス化時に発生する可能性のある検証エラー。
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 pub enum ImageValidationError {
-    /// 提供されたデータが空の場合に返されるエラー。
     EmptyData,
-    /// データ内に画像として認識できない要素が含まれていた場合に返されるエラー。
-    /// `index` フィールドには、問題が検出されたデータのインデックスが格納されます。
-    NotAnImage { index: usize },
+    NotAnImage {
+        index: usize,
+        source: image::ImageError,
+    },
+}
+impl fmt::Display for ImageValidationError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            ImageValidationError::EmptyData => {
+                write!(f, "データが空です。画像データを1つ以上渡してください。")
+            }
+            ImageValidationError::NotAnImage { index, source } => {
+                write!(
+                    f,
+                    "インデックス {} の要素を画像として読み取れません: {}",
+                    index, source
+                )
+            }
+        }
+    }
+}
+
+impl std::error::Error for ImageValidationError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::NotAnImage { source, .. } => Some(source),
+            _ => None,
+        }
+    }
 }
 
 // --- 実装ブロック ---
@@ -68,8 +91,11 @@ impl ImageDataList {
 
         // 最大寸法の集約を行う
         for (i, bytes) in data.iter().enumerate() {
-            let (w, h) = Self::get_dimensions(bytes)
-                .map_err(|_| ImageValidationError::NotAnImage { index: i })?;
+            let (w, h) =
+                Self::get_dimensions(bytes).map_err(|e| ImageValidationError::NotAnImage {
+                    index: i,
+                    source: e,
+                })?;
             if w > max_width {
                 max_width = w;
             }
@@ -81,8 +107,8 @@ impl ImageDataList {
         Ok(Self {
             images: data,
             data_name: data_name.into(),
-            image_height: max_height,
-            image_width: max_width,
+            max_height,
+            max_width,
         })
     }
 
@@ -100,7 +126,7 @@ impl ImageDataList {
 
     /// (幅, 高さ) をまとめて取得。
     pub fn dimensions(&self) -> (u32, u32) {
-        (self.image_width, self.image_height)
+        (self.max_width, self.max_height)
     }
 
     // --- ゲッターメソッド ---
@@ -111,30 +137,11 @@ impl ImageDataList {
     pub fn data_name(&self) -> &str {
         &self.data_name
     }
-    pub fn image_height(&self) -> u32 {
-        self.image_height
+    pub fn max_height(&self) -> u32 {
+        self.max_height
     }
-    pub fn image_width(&self) -> u32 {
-        self.image_width
-    }
-}
-
-// --- トレイト実装 ---
-
-impl fmt::Display for ImageValidationError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            ImageValidationError::EmptyData => {
-                write!(f, "データが空です。画像データを1つ以上渡してください。")
-            }
-            ImageValidationError::NotAnImage { index } => {
-                write!(
-                    f,
-                    "インデックス {} の要素が有効な画像データではありません。",
-                    index
-                )
-            }
-        }
+    pub fn max_width(&self) -> u32 {
+        self.max_width
     }
 }
 
@@ -148,7 +155,7 @@ mod tests {
 
     // --- テスト用ヘルパー関数 ---
     fn create_dummy_png(width: u32, height: u32, color: u8) -> Vec<u8> {
-        let mut buf = vec![color; (width * height * 3) as usize];
+        let buf = vec![color; (width * height * 3) as usize];
         let mut result = Vec::new();
         let encoder = PngEncoder::new(&mut result);
         encoder
@@ -160,7 +167,7 @@ mod tests {
     #[test]
     fn new_empty_returns_empty_error() {
         let res = ImageDataList::new(Vec::new(), "empty_data");
-        assert_eq!(res, Err(ImageValidationError::EmptyData));
+        assert!(matches!(res, Err(ImageValidationError::EmptyData)));
     }
 
     #[test]
@@ -169,7 +176,10 @@ mod tests {
         let not_an_image = b"this is not an image".to_vec();
         let data = vec![valid_png, not_an_image];
         let res = ImageDataList::new(data, "test_data");
-        assert_eq!(res, Err(ImageValidationError::NotAnImage { index: 1 }));
+        assert!(matches!(
+            res,
+            Err(ImageValidationError::NotAnImage { index: 1, .. })
+        ));
     }
 
     /// `new` 関数が、サイズの揃った画像データから正しい寸法を取得することをテストします。
@@ -179,8 +189,8 @@ mod tests {
         let img2 = create_dummy_png(10, 20, 255);
         let data = vec![img1, img2];
         let res = ImageDataList::new(data, "correct_data").unwrap();
-        assert_eq!(res.image_width(), 10);
-        assert_eq!(res.image_height(), 20);
+        assert_eq!(res.max_width(), 10);
+        assert_eq!(res.max_height(), 20);
         assert_eq!(res.dimensions(), (10, 20));
         assert_eq!(res.len(), 2);
         assert!(!res.is_empty());
@@ -202,8 +212,8 @@ mod tests {
         assert!(res.is_ok());
         let image_list = res.unwrap();
         // 最も大きい幅(100)と最も大きい高さ(200)が設定されていることを確認
-        assert_eq!(image_list.image_width(), 100);
-        assert_eq!(image_list.image_height(), 200);
+        assert_eq!(image_list.max_width(), 100);
+        assert_eq!(image_list.max_height(), 200);
     }
 
     /// 単一の画像でも正しく動作することをテストします。
@@ -211,7 +221,7 @@ mod tests {
     fn new_works_with_single_image() {
         let img = create_dummy_png(123, 456, 0);
         let res = ImageDataList::new(vec![img], "single_image").unwrap();
-        assert_eq!(res.image_width(), 123);
-        assert_eq!(res.image_height(), 456);
+        assert_eq!(res.max_width(), 123);
+        assert_eq!(res.max_height(), 456);
     }
 }
