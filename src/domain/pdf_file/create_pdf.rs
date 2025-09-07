@@ -12,9 +12,17 @@ use pdf_font::PdfFont;
 // Alignment は要素の配置（中央揃えなど）を、
 // Document はPDF文書全体を、
 // Size は用紙サイズ（A4など）を定義します。
-use genpdf::{self, elements, Alignment, Document, Size};
+use genpdf::{
+    self, elements, Alignment, Document, PaperSize, Rotation, Scale, SimplePageDecorator,
+};
+use image::DynamicImage;
+
 // Rustの標準ライブラリである std::fs を利用して、ファイルシステムへの書き込み操作を行います。
 use std::fs;
+
+fn px_to_mm(px: u32, dpi: f64) -> f64 {
+    (px as f64) / dpi * 25.4
+}
 
 /// PDFの生成やファイル保存時に発生する可能性のあるエラーを定義する列挙型。
 /// これにより、呼び出し元はエラーの種類に応じた適切な処理を実装できます。
@@ -74,6 +82,21 @@ impl PdfFile {
         // これにより、ICCカラープロファイルやXMPメタデータなどが省略され、ファイルサイズを削減できます。
         doc.set_minimal_conformance();
 
+        // 余白 10mm を付ける
+        let mut decorator = SimplePageDecorator::new();
+        decorator.set_margins(10); // mm 指定。:contentReference[oaicite:6]{index=6}
+        doc.set_page_decorator(decorator);
+
+        // A4 (mm)
+        let page_w_mm = 210.0;
+        let page_h_mm = 297.0;
+        let margin_mm = 10.0;
+        let usable_w = page_w_mm - 2.0 * margin_mm;
+        let usable_h = page_h_mm - 2.0 * margin_mm;
+
+        // 印刷を見据え DPI は 300 を既定（画像が大きすぎる場合は自動縮小）
+        let dpi = 300.0;
+
         // 画像リスト内の各画像データをループ処理し、1つずつPDFページとして追加します。
         // .iter().enumerate() を使うことで、インデックス（何番目の画像か）と画像データの両方を取得できます。
         for (idx, bytes) in image_data_list.images().iter().enumerate() {
@@ -89,6 +112,19 @@ impl PdfFile {
                 ))
             })?;
 
+            let (w_px, h_px) = dynimg.dimensions();
+            let (w_mm, h_mm) = (px_to_mm(w_px, dpi), px_to_mm(h_px, dpi));
+
+            // 回転なし／90°回転の両案でスケールを計算
+            let s0 = (usable_w / w_mm).min(usable_h / h_mm);
+            let s90 = (usable_w / h_mm).min(usable_h / w_mm);
+
+            let (scale, rotate_deg) = if s90 > s0 {
+                (s90.min(1.0), Some(90.0))
+            } else {
+                (s0.min(1.0), None)
+            };
+
             // STEP 2: genpdf が扱える要素に変換する
             // デコードした動的画像オブジェクトを、genpdf の Image 要素に変換します。
             // この処理でもエラーが発生する可能性があるため、同様にエラーハンドリングを行います。
@@ -99,6 +135,12 @@ impl PdfFile {
                     e
                 ))
             })?;
+
+            img.set_dpi(dpi); // 物理サイズ基準を明示。:contentReference[oaicite:7]{index=7}
+            img.set_scale(Scale::new(scale, scale)); // 等比縮小。:contentReference[oaicite:8]{index=8}
+            if let Some(deg) = rotate_deg {
+                img.set_clockwise_rotation(Rotation::from_degrees(deg)); // 90°回して収まりを最適化。:contentReference[oaicite:9]{index=9}
+            }
 
             // STEP 3: 画像の配置方法を設定する
             // 画像をページの中央に配置するよう設定します。
