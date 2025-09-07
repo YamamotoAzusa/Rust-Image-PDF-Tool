@@ -1,5 +1,6 @@
 // use宣言：必要なクレートやモジュールをスコープに取り込む
-use image; // 画像フォーマットの推測に image クレートを利用
+
+use image::{self, GenericImageView}; // 画像のデコードと寸法取得のために利用
 use std::fmt; // エラーメッセージのフォーマットのために fmt モジュールを利用
 
 // --- 構造体定義 ---
@@ -7,15 +8,21 @@ use std::fmt; // エラーメッセージのフォーマットのために fmt �
 /// PDF作成などで利用することを想定した、検証済みの画像データコンテナ。
 ///
 /// 内部的に複数の画像バイナリデータ（`Vec<u8>`）をリスト（`Vec`）として保持します。
-/// `new` コンストラクタを通じてのみインスタンス化でき、その際にデータが空でないことと、
-/// すべての要素がサポートされている画像フォーマットであることが保証されます。
+/// `new` コンストラクタを通じてのみインスタンス化でき、その際に以下の点が保証されます。
+/// - データが空でないこと
+/// - すべての要素がサポートされている画像フォーマットであること
+/// また、すべての画像を包含できる最大の幅と高さを自動的に計算して保持します。
 #[derive(Debug, PartialEq)]
-pub struct ImageDataList(Vec<Vec<u8>>);
+pub struct ImageDataList {
+    images: Vec<Vec<u8>>,
+    data_name: String,
+    image_height: u32,
+    image_width: u32,
+}
 
 // --- エラー定義 ---
 
-/// `ImageDataList` のインスタンス化時に発生する可能性のある検証エラー。
-/// `PartialEq` を派生させることで、テストコード内で `assert_eq!` を使った直接比較が可能になります。
+/// ` ` のインスタンス化時に発生する可能性のある検証エラー。
 #[derive(Debug, PartialEq)]
 pub enum ImageValidationError {
     /// 提供されたデータが空の場合に返されるエラー。
@@ -27,69 +34,102 @@ pub enum ImageValidationError {
 
 // --- 実装ブロック ---
 
-// `ImageDataList` 構造体に関連するメソッドを実装します。
 impl ImageDataList {
+    /// 画像のバイナリデータから幅と高さを取得するヘルパー関数。
+    #[inline]
+    fn get_dimensions(bytes: &[u8]) -> Result<(u32, u32), image::ImageError> {
+        Ok(image::load_from_memory(bytes)?.dimensions())
+    }
+
     /// 新しい `ImageDataList` インスタンスを作成（コンストラクタ）。
     ///
+    /// 渡されたすべての画像データから、最大の幅と高さを算出して保持します。
+    ///
     /// # 引数
-    /// * `data`: 画像のバイナリデータ（`Vec<u8>`）を要素とするベクター。各要素が1つの画像ファイルに対応します。
+    /// * `data`: 画像のバイナリデータ（`Vec<u8>`）を要素とするベクター。
+    /// * `data_name`: この画像リストを識別するための名前。
     ///
     /// # 戻り値
-    /// * `Ok(ImageDataList)`: すべてのデータが有効な画像フォーマットである場合。
-    /// * `Err(ImageValidationError)`: 検証に失敗した場合。
-    ///     - `ImageValidationError::EmptyData`: `data` が空の場合。
-    ///     - `ImageValidationError::NotAnImage`: `data` 内に画像でない要素が含まれている場合。
-    pub fn new(data: Vec<Vec<u8>>) -> Result<Self, ImageValidationError> {
-        // --- 事前条件チェック ---
-        // 1. データが空でないことを確認します。
-        // もし空であれば、処理を続行せずに `EmptyData` エラーを返します。
+    /// * `Ok(ImageDataList)`: 有効な画像データが1つ以上含まれている場合。
+    /// * `Err(ImageValidationError)`: データが空か、画像でない要素が含まれている場合。
+    pub fn new(
+        data: Vec<Vec<u8>>,
+        data_name: impl Into<String>,
+    ) -> Result<Self, ImageValidationError> {
         if data.is_empty() {
             return Err(ImageValidationError::EmptyData);
         }
 
-        // --- データ検証ループ ---
-        // 2. 提供されたすべてのバイト列を順にチェックします。
-        // `enumerate()` を使うことで、要素のインデックスと値の両方を取得できます。
+        let mut max_width = 0u32;
+        let mut max_height = 0u32;
+
+        // 最大寸法の集約を行う
         for (i, bytes) in data.iter().enumerate() {
-            // `image::guess_format` を使い、バイト列の先頭部分（マジックナンバー）から
-            // 画像フォーマットを推測します。
-            // この関数は非常に高速で、画像全体をデコードする必要はありません。
-            // 推測に失敗した場合（`is_err()` が true）、そのデータは画像ではないと判断します。
-            if image::guess_format(bytes).is_err() {
-                // 問題が発見された要素のインデックス `i` を含んだ `NotAnImage` エラーを返します。
-                return Err(ImageValidationError::NotAnImage { index: i });
+            let (w, h) = Self::get_dimensions(bytes)
+                .map_err(|_| ImageValidationError::NotAnImage { index: i })?;
+            if w > max_width {
+                max_width = w;
+            }
+            if h > max_height {
+                max_height = h;
             }
         }
 
-        // --- 成功時の処理 ---
-        // すべての検証を通過した場合、`data` を持つ `ImageDataList` インスタンスを `Ok` で包んで返します。
-        Ok(ImageDataList(data))
+        Ok(Self {
+            images: data,
+            data_name: data_name.into(),
+            image_height: max_height,
+            image_width: max_width,
+        })
     }
 
-    /// 内部に保持している画像データの不変参照を返すゲッターメソッド。
-    ///
-    /// これにより、外部コードは `ImageDataList` の中身を読み取ることができますが、
-    /// 所有権を奪ったり、直接変更したりすることはできません。
-    pub fn data(&self) -> &Vec<Vec<u8>> {
-        &self.0
+    // --- 便利メソッド ---
+
+    /// 保持している画像の枚数を返します。
+    pub fn len(&self) -> usize {
+        self.images.len()
+    }
+
+    /// 保持している画像が空かどうか。
+    pub fn is_empty(&self) -> bool {
+        self.images.is_empty()
+    }
+
+    /// (幅, 高さ) をまとめて取得。
+    pub fn dimensions(&self) -> (u32, u32) {
+        (self.image_width, self.image_height)
+    }
+
+    // --- ゲッターメソッド ---
+
+    pub fn images(&self) -> &Vec<Vec<u8>> {
+        &self.images
+    }
+    pub fn data_name(&self) -> &str {
+        &self.data_name
+    }
+    pub fn image_height(&self) -> u32 {
+        self.image_height
+    }
+    pub fn image_width(&self) -> u32 {
+        self.image_width
     }
 }
 
 // --- トレイト実装 ---
 
-// `ImageValidationError` を人間が読める文字列として表示するための `Display` トレイトを実装します。
-// これにより、`println!("{}", error);` のようにしてエラーメッセージを簡単に出力できるようになります。
 impl fmt::Display for ImageValidationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        // `match` 式を使って、エラーの種類ごとに異なるメッセージをフォーマットします。
         match self {
-            // `EmptyData` の場合
             ImageValidationError::EmptyData => {
                 write!(f, "データが空です。画像データを1つ以上渡してください。")
             }
-            // `NotAnImage` の場合。`{ index }` で中の値を取り出してメッセージに埋め込みます。
             ImageValidationError::NotAnImage { index } => {
-                write!(f, "データの要素 {} が画像データではありません。", index)
+                write!(
+                    f,
+                    "インデックス {} の要素が有効な画像データではありません。",
+                    index
+                )
             }
         }
     }
@@ -97,53 +137,78 @@ impl fmt::Display for ImageValidationError {
 
 // --- テストモジュール ---
 
-// `#[cfg(test)]` アトリビュートにより、このモジュールは `cargo test` 実行時のみコンパイルされます。
 #[cfg(test)]
 mod tests {
-    // 親モジュール（このファイルの外側）から必要なものをインポートします。
     use super::*;
+    use image::codecs::png::PngEncoder;
+    use image::{ExtendedColorType, ImageEncoder};
 
-    /// `new` 関数に空のベクターを渡した際に `EmptyData` エラーが返されることをテストします。
+    // --- テスト用ヘルパー関数 ---
+    fn create_dummy_png(width: u32, height: u32, color: u8) -> Vec<u8> {
+        let mut buf = vec![color; (width * height * 3) as usize];
+        let mut result = Vec::new();
+        let encoder = PngEncoder::new(&mut result);
+        encoder
+            .write_image(&buf, width, height, ExtendedColorType::Rgb8)
+            .expect("PNGのエンコードに失敗");
+        result
+    }
+
     #[test]
     fn new_empty_returns_empty_error() {
-        // Act: `ImageDataList::new` に空のベクターを渡して呼び出します。
-        let res = ImageDataList::new(Vec::new());
-
-        // Assert: 結果が期待通り `Err(ImageValidationError::EmptyData)` であることを確認します。
+        let res = ImageDataList::new(Vec::new(), "empty_data");
         assert_eq!(res, Err(ImageValidationError::EmptyData));
     }
 
-    /// `new` 関数に画像でないデータが含まれている場合に、
-    /// 正しいインデックスを持つ `NotAnImage` エラーが返されることをテストします。
     #[test]
     fn new_rejects_non_image_and_reports_index() {
-        // Arrange: テストデータを用意します。
-        // 1つ目は有効な画像データ（PNGヘッダー）、2つ目は明らかに画像でないテキストデータです。
-        let valid_png_header = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A];
+        let valid_png = create_dummy_png(1, 1, 0);
         let not_an_image = b"this is not an image".to_vec();
-        let data = vec![valid_png_header, not_an_image];
-
-        // Act: テストデータを渡して `ImageDataList::new` を呼び出します。
-        let res = ImageDataList::new(data);
-
-        // Assert: 結果が、インデックス `1` を持つ `NotAnImage` エラーであることを確認します。
+        let data = vec![valid_png, not_an_image];
+        let res = ImageDataList::new(data, "test_data");
         assert_eq!(res, Err(ImageValidationError::NotAnImage { index: 1 }));
     }
 
-    /// `new` 関数が、既知の画像フォーマット（のマジックバイト）を正しく受け入れることをテストします。
+    /// `new` 関数が、サイズの揃った画像データから正しい寸法を取得することをテストします。
     #[test]
-    fn new_accepts_known_image_magic_bytes() {
-        // Arrange: 一般的な画像フォーマットの先頭バイト列（マジックナンバー）を用意します。
-        // `image::guess_format` はこれらの数バイトだけでフォーマットを推測できます。
-        let png = vec![0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]; // PNG
-        let jpg = vec![0xFF, 0xD8, 0xFF, 0xE0]; // JPEG (SOI + APP0 マーカー)
-        let gif = b"GIF89a".to_vec(); // GIF
-        let data = vec![png, jpg, gif];
+    fn new_accepts_valid_images_with_same_dimensions() {
+        let img1 = create_dummy_png(10, 20, 0);
+        let img2 = create_dummy_png(10, 20, 255);
+        let data = vec![img1, img2];
+        let res = ImageDataList::new(data, "correct_data").unwrap();
+        assert_eq!(res.image_width(), 10);
+        assert_eq!(res.image_height(), 20);
+        assert_eq!(res.dimensions(), (10, 20));
+        assert_eq!(res.len(), 2);
+        assert!(!res.is_empty());
+    }
 
-        // Act: これらの有効なデータを渡して `ImageDataList::new` を呼び出します。
-        let res = ImageDataList::new(data);
+    /// `new` 関数が、サイズの異なる複数の画像から最大の幅と高さを正しく計算することをテストします。
+    #[test]
+    fn new_calculates_max_dimensions_from_varied_sizes() {
+        // Arrange
+        let img1 = create_dummy_png(100, 50, 0); // 幅が最大
+        let img2 = create_dummy_png(80, 200, 0); // 高さが最大
+        let img3 = create_dummy_png(30, 30, 0); // 幅も高さも最大ではない
+        let data = vec![img1, img2, img3];
 
-        // Assert: 結果が `Ok` であることを確認します。`is_ok()` は Result が `Ok` かどうかを bool で返します。
+        // Act
+        let res = ImageDataList::new(data, "varied_sizes");
+
+        // Assert
         assert!(res.is_ok());
+        let image_list = res.unwrap();
+        // 最も大きい幅(100)と最も大きい高さ(200)が設定されていることを確認
+        assert_eq!(image_list.image_width(), 100);
+        assert_eq!(image_list.image_height(), 200);
+    }
+
+    /// 単一の画像でも正しく動作することをテストします。
+    #[test]
+    fn new_works_with_single_image() {
+        let img = create_dummy_png(123, 456, 0);
+        let res = ImageDataList::new(vec![img], "single_image").unwrap();
+        assert_eq!(res.image_width(), 123);
+        assert_eq!(res.image_height(), 456);
     }
 }
