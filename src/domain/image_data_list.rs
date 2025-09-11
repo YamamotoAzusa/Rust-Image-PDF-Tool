@@ -13,7 +13,7 @@ use std::io::Cursor;
 /// - データが空でないこと
 /// - すべての要素がサポートされている画像フォーマットであること
 /// また、すべての画像を包含できる最大の幅と高さを自動的に計算して保持します。
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct ImageDataList {
     images: Vec<Vec<u8>>,
     data_name: String,

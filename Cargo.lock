@@ -1095,6 +1095,7 @@ dependencies = [
  "image 0.25.8",
  "rusttype 0.9.3",
  "tempfile",
+ "thiserror",
  "walkdir",
  "zip",
 ]

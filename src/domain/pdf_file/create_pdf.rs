@@ -4,18 +4,17 @@
 // Cargo.toml の [dependencies] セクションに `thiserror = "1.0"` を追加する必要があります。
 use thiserror::Error;
 
-use crate::image_data_list::ImageDataList;
-use crate::pdf_font::PdfFont;
+use super::pdf_font::PdfFont;
+use crate::domain::image_data_list::ImageDataList;
 
 // genpdf クレート
-use genpdf::{
-    elements, Alignment, Document, PaperSize, Rotation, Scale, SimplePageDecorator, Size,
-};
-// image クレート
-use image::DynamicImage;
+use genpdf::{elements, Alignment, Document, Rotation, Scale, SimplePageDecorator, Size};
+// image クレート（寸法取得のために使用）
+use image::GenericImageView;
 
 // Rust 標準ライブラリ
 use std::fs;
+use std::io::Cursor;
 use std::path::Path;
 
 // --- 定数定義 ---
@@ -89,7 +88,8 @@ impl PdfFile {
         let mut doc = Document::new(pdf_font.get_font_family().clone());
 
         doc.set_title(image_data_list.data_name().to_string());
-        doc.set_paper_size(PaperSize::new(A4_WIDTH_MM, A4_HEIGHT_MM));
+        // genpdf 0.2.x では PaperSize::new は存在しないため Size::new を使用
+        doc.set_paper_size(Size::new(A4_WIDTH_MM, A4_HEIGHT_MM));
         doc.set_minimal_conformance();
 
         let mut decorator = SimplePageDecorator::new();
@@ -100,7 +100,7 @@ impl PdfFile {
         let usable_h = A4_HEIGHT_MM - 2.0 * DEFAULT_MARGIN_MM;
 
         for (idx, bytes) in image_data_list.images().iter().enumerate() {
-            // STEP 1: 画像のバイトデータをデコードする
+            // STEP 1: 寸法取得のため、imageクレートで一度デコードする
             let dynimg = image::load_from_memory(bytes).map_err(|e| PdfError::ImageDecode {
                 index: idx + 1,
                 source: e,
@@ -111,8 +111,8 @@ impl PdfFile {
             let (scale, rotation) =
                 Self::calculate_transform((w_px, h_px), (usable_w, usable_h), DEFAULT_DPI);
 
-            // STEP 3: genpdf が扱える要素に変換し、プロパティを設定する
-            let mut img = elements::Image::from_dynamic_image(dynimg).map_err(|e| {
+            // STEP 3: genpdf が扱える要素に変換（再デコードは genpdf 側に任せる）
+            let mut img = elements::Image::from_reader(Cursor::new(bytes)).map_err(|e| {
                 PdfError::ImageToElement {
                     index: idx + 1,
                     source: e,

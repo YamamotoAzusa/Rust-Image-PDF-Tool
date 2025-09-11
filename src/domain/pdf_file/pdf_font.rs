@@ -17,7 +17,7 @@ use std::fs;
 pub struct PdfFont(
     // フィールドを `pub` にすることで、外部モジュールから `my_font.0` のように
     // 内部の `FontFamily` に直接アクセスできます。
-    pub FontFamily,
+    pub FontFamily<FontData>,
 );
 
 impl PdfFont {
@@ -44,7 +44,8 @@ impl PdfFont {
             // `fs::read` でファイルの内容をバイトベクタ (`Vec<u8>`) として読み込みます。
             // ファイル読み込みは失敗する可能性があるため、`?` 演算子を使用します。
             // これにより、`fs::read` がエラーを返した場合、この `new` 関数は即座にそのエラーを返して終了します。
-            let font_bytes = fs::read(path)?;
+            let font_bytes = fs::read(path)
+                .map_err(|e| Error::new(format!("フォント読み込み失敗: {}", path), e))?;
 
             // 読み込んだバイトデータから `FontData` を作成します。
             // フォントデータが不正な場合もエラーを返す可能性があるため、ここでも `?` を使います。
@@ -54,7 +55,7 @@ impl PdfFont {
             // `include_bytes!` マクロは、コンパイル時に指定されたファイルを読み込み、
             // その内容を `&'static [u8]` (静的ライフタイムを持つバイトスライス) としてバイナリに直接埋め込みます。
             // これにより、実行時にフォントファイルがなくてもプログラムは正しく動作します。
-            let font_bytes = include_bytes!("../fonts/DejaVuSans.ttf");
+            let font_bytes = include_bytes!("../../../fonts/DejaVuSans.ttf");
 
             // 埋め込まれたバイトスライスから `FontData` を作成します。
             // `FontData::new` は `Vec<u8>` を要求するため、`.to_vec()` で変換します。
@@ -67,7 +68,7 @@ impl PdfFont {
         //
         // 注意: スタイルごとに異なるフォントファイル（例: `MyFont-Regular.ttf`, `MyFont-Bold.ttf`）を
         // 使用したい場合は、それぞれを個別に読み込んで `FontData` を作成し、各フィールドに設定する必要があります。
-        let font_family = FontFamily {
+        let font_family: FontFamily<FontData> = FontFamily {
             regular: font_data.clone(),
             bold: font_data.clone(),
             italic: font_data.clone(),
@@ -87,7 +88,7 @@ impl PdfFont {
     /// # 戻り値
     ///
     /// - `&genpdf::fonts::FontFamily`: 内部のフォントファミリーへの参照。
-    pub fn get_font_family(&self) -> &FontFamily {
+    pub fn get_font_family(&self) -> &FontFamily<FontData> {
         // `self.0` はタプル構造体の最初の要素、つまり `FontFamily` インスタンスを指します。
         // その要素への参照を返します。
         &self.0

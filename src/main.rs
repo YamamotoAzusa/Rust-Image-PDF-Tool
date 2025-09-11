@@ -1,20 +1,25 @@
-// // src/main.rs
-// mod cli;
-// mod domain;
-// mod infrastructure;
-// mod workflow;
+mod cli;
+mod workflow;
+use crate::cli::Args;
+use clap::Parser;
+use std::error::Error;
+use std::process;
+fn main() {
+    // 1. 引数を解析
+    let args = Args::parse();
 
-// use clap::Parser;
-// use cli::Args;
-// fn main() {
-//     // 1. 引数を解析
-//     let args = Args::parse();
-//     println!("処理を開始します: {}", args.input_path.display());
+    // 2. メインワークフローを実行
+    println!("処理を開始します: {}", args.input_dir.display());
+    if let Err(e) = workflow::run(args) {
+        eprintln!("エラーが発生しました: {}", e);
+        // エラーの原因が複数層にわたる場合、根本原因も表示する
+        let mut source = e.source();
+        while let Some(s) = source {
+            eprintln!("  原因: {}", s);
+            source = s.source();
+        }
+        process::exit(1);
+    }
 
-//     // 2. メインワークフローを実行
-//     match workflow::run_conversion(args.input_path) {
-//         Ok(_) => println!("すべての処理が正常に完了しました。"),
-//         Err(e) => eprintln!("エラーが発生しました: {:?}", e),
-//     }
-// }
-mod domain;
+    println!("すべての処理が正常に完了しました。");
+}
